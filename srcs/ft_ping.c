@@ -50,7 +50,7 @@ static void ft_ping(char **argv)
 
     signal(SIGINT, sighandler);
 
-    send_ping(ip_addr, reverse_hostname, &addr_con, sockfd);
+    send_ping(ip_addr, reverse_hostname, argv[1], &addr_con, sockfd);
 }
 
 static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con)
@@ -89,6 +89,6 @@ static char *reverse_dns(char *ip)
     return reversedns;
 }
 
-static void send_ping(char *ip, char *dns, struct sockaddr_in *addr, int sockfd) {
+static void send_ping(char *ip, char *dns, char *hostname, struct sockaddr_in *addr, int sockfd) {
 
 }
