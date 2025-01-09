@@ -119,7 +119,7 @@ static void send_ping(char *ip, char *dns, char *hostname,
     struct timeval t_out;
     struct packet_t packet;
     socklen_t addr_len = 0;
-    int ttl = 64, i = 0, count = 0, send_error = 0;
+    int ttl = 64, i = 0, count = 1, send_error = 0;
     char receive_buffer[128];
 
     t_out.tv_sec = 1;
@@ -148,16 +148,16 @@ static void send_ping(char *ip, char *dns, char *hostname,
         packet.header.type = ICMP_ECHO;
         packet.header.un.echo.id = getpid();
 
-        for (i = 0; i < sizeof(packet.msg); i++) 
+        for (i = 0; i < (int)sizeof(packet.msg); i++) 
         {
             packet.msg[i] = i + '0';
         }
         packet.msg[i] = 0;
         packet.header.un.echo.sequence = count++;
-        packet.header.checksum = calculate_checksum(&packet.header, sizeof(packet.header));
+        packet.header.checksum = calculate_checksum(&packet, sizeof(packet));
         gettimeofday(&time_start, NULL);
 
-            int send_len = sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)s_addr, sizeof(*s_addr));
+        int send_len = sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)s_addr, sizeof(*s_addr));
         printf("Send len %d\n",send_len);
         if (send_len <= 0)
         {
@@ -169,6 +169,7 @@ static void send_ping(char *ip, char *dns, char *hostname,
         printf("Receive len %d\n",recv_len);
         if (recv_len <= 0) {
             perror("Fail to receive packet\n");
+            printf("r_buf %s, \n", receive_buffer);
         } else {
             gettimeofday(&time_end, NULL);
 
