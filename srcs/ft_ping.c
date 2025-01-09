@@ -16,7 +16,7 @@ int main(int ac, char **av)
     }
     (void)av;
     // parse args
-    // ping
+
     ft_ping(av);
     return 0;
 }
@@ -49,6 +49,7 @@ static void ft_ping(char **argv)
     if (sockfd < 0)
     {
         printf("Fail to create socket fd %d\n", sockfd);
+        perror("test");
         return;
     }
 
@@ -119,12 +120,11 @@ static void send_ping(char *ip, char *dns, char *hostname,
     struct timeval t_out;
     struct packet_t packet;
     socklen_t addr_len = 0;
-    int ttl = 64, i = 0, count = 1, send_error = 0;
+    int ttl = 64, i = 0, count = 0, send_error = 0;
     char receive_buffer[128];
 
     t_out.tv_sec = 1;
     t_out.tv_usec = 0;
-
 
     if (setsockopt(sockfd, SOL_IP, IP_TTL, &ttl, sizeof(ttl)) < 0)
     {
@@ -137,54 +137,59 @@ static void send_ping(char *ip, char *dns, char *hostname,
         printf("Fail to set socket timeout\n");
         return;
     }
-    
+
     gettimeofday(&total_time, NULL);
     printf("PING %s (%s) 56(84) bytes of data.\n", hostname, ip);
     while (!stop)
     {
-
         bzero(&packet, sizeof(packet));
         bzero(&r_addr, sizeof(r_addr));
+        bzero(receive_buffer, sizeof(receive_buffer));
         packet.header.type = ICMP_ECHO;
         packet.header.un.echo.id = getpid();
 
-        for (i = 0; i < (int)sizeof(packet.msg); i++) 
+        for (i = 0; i < (int)sizeof(packet.msg); i++)
         {
             packet.msg[i] = i + '0';
         }
         packet.msg[i] = 0;
         packet.header.un.echo.sequence = count++;
         packet.header.checksum = calculate_checksum(&packet, sizeof(packet));
-        gettimeofday(&time_start, NULL);
 
         int send_len = sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)s_addr, sizeof(*s_addr));
-        printf("Send len %d\n",send_len);
         if (send_len <= 0)
         {
             send_error = 1;
             printf("Fail to send packet\n");
         }
+        gettimeofday(&time_start, NULL);
         addr_len = sizeof(r_addr);
-        int recv_len = recvfrom(sockfd, receive_buffer, sizeof(receive_buffer), 0, (struct sockaddr *)&r_addr, &addr_len);
-        printf("Receive len %d\n",recv_len);
-        if (recv_len <= 0) {
+        int recv_len = recvfrom(sockfd, receive_buffer, sizeof(receive_buffer), 0, (struct sockaddr *)s_addr, &addr_len);
+        if (recv_len <= 0)
+        {
             perror("Fail to receive packet\n");
             printf("r_buf %s, \n", receive_buffer);
-        } else {
+        }
+        else
+        {
+            struct iphdr *ip_header = (struct iphdr *)receive_buffer;
+            struct icmphdr *receiver_header = (struct icmphdr *)(receive_buffer + (ip_header->ihl * 4));
+
             gettimeofday(&time_end, NULL);
 
-            if (!send_error) {
-                struct icmphdr *receiver_header = (struct icmphdr *)receive_buffer;
+            if (!send_error)
+            {
                 long double timing = ((double)time_end.tv_usec - (double)time_start.tv_usec) / 1000;
-                if (receiver_header->type == 0 && receiver_header->code == 0) {
-                    printf("64 bytes from %s (%s): icmp_seq=%d ttl=%d time=%.1Lf ms\n",dns,ip, count, ttl, timing);
+                if (receiver_header->type == 0 && receiver_header->code == 0)
+                {
+                    printf("64 bytes from %s (%s): icmp_seq=%d ttl=%d time=%.1Lf ms\n", dns, ip, receiver_header->un.echo.sequence, ip_header->ttl, timing);
+                }
+                else
+                {
+                    printf("Receive code %d type %d\n", receiver_header->code, receiver_header->type);
                 }
             }
-
         }
         usleep(1000 * 1000);
-
-
-
     }
 }
