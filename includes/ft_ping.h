@@ -13,3 +13,7 @@
 #include <signal.h>
 #include <stdbool.h>
 
+typedef struct packet_t {
+    struct icmphdr header;
+    char msg[64 - sizeof(struct icmphdr)];
+} packet_s;
