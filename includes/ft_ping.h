@@ -13,7 +13,9 @@
 #include <signal.h>
 #include <stdbool.h>
 
+#pragma pack(push, 1)
 typedef struct packet_t {
     struct icmphdr header;
-    char msg[64 - sizeof(struct icmphdr)];
+    char msg[48];
 } packet_s;
+#pragma pack(pop)

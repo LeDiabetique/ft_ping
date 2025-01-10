@@ -5,3 +5,6 @@
 
     - unused adresses:
         - 180.024.24.26
+
+    -useful cmd:
+            sudo code --no-sandbox --user-data-dir="/tmp/vscode-data" ft_ping/

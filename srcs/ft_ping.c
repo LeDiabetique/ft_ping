@@ -67,12 +67,15 @@ static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con)
         printf("ping: %s: Name or service not known\n", hostname);
         return NULL;
     }
+if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)host->h_addr), &(addr_con->sin_addr.s_addr)) <= 0) {
+        printf("Error converting address to binary format.\n");
+        return NULL;
+    }
     strcpy(ip, inet_ntoa(*(struct in_addr *)host->h_addr));
 
-    // printf("Hostname found %s\n", host->h_name);
-    // printf("IP %s\n", ip);
+    printf("Hostname found %s\n", host->h_name);
+    printf("IP %s\n", ip);
 
-    addr_con->sin_addr.s_addr = *(long *)host->h_name;
     addr_con->sin_family = host->h_addrtype;
     addr_con->sin_port = htons(0);
     return ip;
@@ -144,16 +147,17 @@ static void send_ping(char *ip, char *dns, char *hostname,
     {
         bzero(&packet, sizeof(packet));
         bzero(&r_addr, sizeof(r_addr));
-        bzero(receive_buffer, sizeof(receive_buffer));
+        bzero(receive_buffer, sizeof(receive_buffer));        
         packet.header.type = ICMP_ECHO;
-        packet.header.un.echo.id = getpid();
+        packet.header.un.echo.id = htons(getpid());
+        packet.header.code = 0;
 
         for (i = 0; i < (int)sizeof(packet.msg); i++)
         {
             packet.msg[i] = i + '0';
         }
         packet.msg[i] = 0;
-        packet.header.un.echo.sequence = count++;
+        packet.header.un.echo.sequence = __bswap_16(count++);
         packet.header.checksum = calculate_checksum(&packet, sizeof(packet));
 
         int send_len = sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)s_addr, sizeof(*s_addr));
@@ -168,7 +172,6 @@ static void send_ping(char *ip, char *dns, char *hostname,
         if (recv_len <= 0)
         {
             perror("Fail to receive packet\n");
-            printf("r_buf %s, \n", receive_buffer);
         }
         else
         {
@@ -182,7 +185,7 @@ static void send_ping(char *ip, char *dns, char *hostname,
                 long double timing = ((double)time_end.tv_usec - (double)time_start.tv_usec) / 1000;
                 if (receiver_header->type == 0 && receiver_header->code == 0)
                 {
-                    printf("64 bytes from %s (%s): icmp_seq=%d ttl=%d time=%.1Lf ms\n", dns, ip, receiver_header->un.echo.sequence, ip_header->ttl, timing);
+                    printf("64 bytes from %s (%s): icmp_seq=%d ttl=%d time=%.1Lf ms\n", dns, ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
                 }
                 else
                 {
