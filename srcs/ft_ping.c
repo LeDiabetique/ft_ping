@@ -5,6 +5,7 @@ static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con);
 static char *reverse_dns(char *ip, char *arg);
 static void send_ping(char *ip, char *dns, char *hostname, struct sockaddr_in *addr, int sockfd);
 static unsigned short calculate_checksum(void *b, int len);
+static bool is_ip_address(char * addr);
 
 static bool stop = false;
 
@@ -83,8 +84,7 @@ if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)host->h_addr), &(addr_con->s
 static bool is_ip_address(char * addr) {
     int len = strlen(addr);
     for(int i = 0; i < len; i++) {
-        printf("%c", addr[i]);
-        if (addr[i] <= '0' && addr[i] >= '9' && addr[i] != '.') {
+        if ((addr[i] <= '0' || addr[i] >= '9') && addr[i] != '.') {
             return false;
         }
     }
@@ -99,14 +99,14 @@ static char *reverse_dns(char *ip, char *arg)
 
     socklen_t len = sizeof(struct sockaddr_in);
     char *reversedns = malloc(NI_MAXHOST * sizeof(char));
-    if (is_ip_address(arg) == false){
+    if (is_ip_address(arg) == true){
+        strncpy(reversedns, arg, strlen(arg));
+    } else {
         if (getnameinfo((struct sockaddr *)&tmp, len, reversedns, NI_MAXHOST, NULL, 0, NI_NAMEREQD))
         {
             printf("Couldn't resolve hostname\n");
             return NULL;
         }
-    } else {
-        strncpy(reversedns, arg, strlen(arg));
     }
     return reversedns;
 }
