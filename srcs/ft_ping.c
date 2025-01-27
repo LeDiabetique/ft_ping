@@ -104,8 +104,8 @@ static char *reverse_dns(char *ip, char *arg)
     } else {
         if (getnameinfo((struct sockaddr *)&tmp, len, reversedns, NI_MAXHOST, NULL, 0, NI_NAMEREQD))
         {
-            printf("Couldn't resolve hostname\n");
-            return NULL;
+            // printf("Couldn't resolve hostname\n");
+            return reversedns;
         }
     }
     return reversedns;
@@ -133,13 +133,15 @@ static void send_ping(char *ip, char *dns, char *hostname,
 
     struct sockaddr_in r_addr;
 
-    struct timeval time_start, time_end, total_time;
+    struct timeval time_start, time_end = {0};
+    long double total_time = 0;
     struct timeval t_out;
     struct packet_t packet;
     socklen_t addr_len = 0;
     int ttl = 64, i = 0, count = 0, send_error = 0;
     char receive_buffer[128];
-
+    int send_count = 0, receive_count = 0, error_count = 0;
+    long double min = 0, max = 0, avg = 0, mdev = 0, last_timing;
     t_out.tv_sec = 1;
     t_out.tv_usec = 0;
 
@@ -155,7 +157,6 @@ static void send_ping(char *ip, char *dns, char *hostname,
         return;
     }
 
-    gettimeofday(&total_time, NULL);
     printf("PING %s (%s) 56(84) bytes of data.\n", hostname, ip);
     while (!stop)
     {
@@ -174,41 +175,73 @@ static void send_ping(char *ip, char *dns, char *hostname,
         packet.header.un.echo.sequence = __bswap_16(count++);
         packet.header.checksum = calculate_checksum(&packet, sizeof(packet));
 
+        gettimeofday(&time_start, NULL);
         int send_len = sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)s_addr, sizeof(*s_addr));
         if (send_len <= 0)
         {
             send_error = 1;
-            printf("Fail to send packet\n");
+        } else {
+            send_count++;
         }
-        gettimeofday(&time_start, NULL);
         addr_len = sizeof(r_addr);
+        gettimeofday(&time_end, NULL);
+        long double send_timing = ((double)time_end.tv_usec - (double)time_start.tv_usec) / 1000;
+        total_time += ++send_timing;
+        gettimeofday(&time_start, NULL);
+
         int recv_len = recvfrom(sockfd, receive_buffer, sizeof(receive_buffer), 0, (struct sockaddr *)s_addr, &addr_len);
-        if (recv_len <= 0)
+        gettimeofday(&time_end, NULL);
+        long double timing = ((double)time_end.tv_usec - (double)time_start.tv_usec) / 1000;
+        if (recv_len > 0)
         {
-            perror("Fail to receive packet\n");
-        }
-        else
-        {
+            receive_count++;
             struct iphdr *ip_header = (struct iphdr *)receive_buffer;
             struct icmphdr *receiver_header = (struct icmphdr *)(receive_buffer + (ip_header->ihl * 4));
 
-            gettimeofday(&time_end, NULL);
 
             if (!send_error)
             {
-                long double timing = ((double)time_end.tv_usec - (double)time_start.tv_usec) / 1000;
                 if (receiver_header->type == 0 && receiver_header->code == 0)
                 {
+                    if (timing < min || min == 0) {
+                        min = timing; 
+                    }
+                    if (timing > max || max == 0) {
+                        max = timing;
+                    }
+                    avg += timing;
+                    if(count > 1) {
+                        long double calcul_mdev = last_timing - timing;
+                        if (calcul_mdev < 0) {
+                            calcul_mdev *= -1;
+                        }
+                        mdev += calcul_mdev;
+
+                    }
+                    last_timing = timing;
                     printf("64 bytes from %s (%s): icmp_seq=%d ttl=%d time=%.1Lf ms\n", dns, ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
                 }
                 else
                 {
+                    error_count++;
                     printf("Receive code %d type %d\n", receiver_header->code, receiver_header->type);
                 }
             }
         }
-        usleep(1000 * 1000);
+        long double sleep_timing = ((double)time_end.tv_usec - (double)time_start.tv_usec) / 1000;
+        long double sleep_time = 1000 - sleep_timing - send_timing;
+        usleep(sleep_time * 1000);
+        total_time += 1000; 
     }
     printf("\n--- %s ping statistics ---\n", hostname);
-    printf("2 packets transmitted, 2 received, 0%% packet loss, time 1001ms\n");
+    printf("%d packets transmitted, %d received,",send_count, receive_count);
+    if (error_count > 0) {
+        printf("+ %derrors, ",error_count);
+    }
+    printf("%d%% packet loss, time %.0Lfms\n", 100 - (receive_count / send_count * 100), total_time);
+    if (receive_count > 0) {
+        mdev = mdev / receive_count;
+        avg = avg / receive_count;
+        printf("rtt min/avg/max/mdev = %.3Lf/%.3Lf/%.3Lf/%.3Lf ms\n", min,avg,max,mdev);
+    }
 }
