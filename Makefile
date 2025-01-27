@@ -1,7 +1,7 @@
 NAME        := ft_ping
 
 CC			:= gcc
-FLAGS		:= -Wall -Wextra 
+FLAGS		:= -Wall -Wextra -Werror
 RM		    := rm -f
 
 SRC_DIR		:= srcs/

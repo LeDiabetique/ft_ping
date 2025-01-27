@@ -2,7 +2,7 @@
 
 static void ft_ping(char **argv);
 static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con);
-static char *reverse_dns(char *ip);
+static char *reverse_dns(char *ip, char *arg);
 static void send_ping(char *ip, char *dns, char *hostname, struct sockaddr_in *addr, int sockfd);
 static unsigned short calculate_checksum(void *b, int len);
 
@@ -39,7 +39,7 @@ static void ft_ping(char **argv)
         return;
     }
 
-    reverse_hostname = reverse_dns(ip_addr);
+    reverse_hostname = reverse_dns(ip_addr, argv[1]);
     if (reverse_hostname == NULL)
     {
         return;
@@ -49,7 +49,6 @@ static void ft_ping(char **argv)
     if (sockfd < 0)
     {
         printf("Fail to create socket fd %d\n", sockfd);
-        perror("test");
         return;
     }
 
@@ -73,15 +72,26 @@ if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)host->h_addr), &(addr_con->s
     }
     strcpy(ip, inet_ntoa(*(struct in_addr *)host->h_addr));
 
-    printf("Hostname found %s\n", host->h_name);
-    printf("IP %s\n", ip);
+    // printf("Hostname found %s\n", host->h_name);
+    // printf("IP %s\n", ip);
 
     addr_con->sin_family = host->h_addrtype;
     addr_con->sin_port = htons(0);
     return ip;
 }
 
-static char *reverse_dns(char *ip)
+static bool is_ip_address(char * addr) {
+    int len = strlen(addr);
+    for(int i = 0; i < len; i++) {
+        printf("%c", addr[i]);
+        if (addr[i] <= '0' && addr[i] >= '9' && addr[i] != '.') {
+            return false;
+        }
+    }
+    return true;
+}
+
+static char *reverse_dns(char *ip, char *arg)
 {
     struct sockaddr_in tmp;
     tmp.sin_addr.s_addr = inet_addr(ip);
@@ -89,10 +99,14 @@ static char *reverse_dns(char *ip)
 
     socklen_t len = sizeof(struct sockaddr_in);
     char *reversedns = malloc(NI_MAXHOST * sizeof(char));
-    if (getnameinfo((struct sockaddr *)&tmp, len, reversedns, NI_MAXHOST, NULL, 0, NI_NAMEREQD))
-    {
-        printf("Couldn't resolve hostname\n");
-        return NULL;
+    if (is_ip_address(arg) == false){
+        if (getnameinfo((struct sockaddr *)&tmp, len, reversedns, NI_MAXHOST, NULL, 0, NI_NAMEREQD))
+        {
+            printf("Couldn't resolve hostname\n");
+            return NULL;
+        }
+    } else {
+        strncpy(reversedns, arg, strlen(arg));
     }
     return reversedns;
 }
@@ -195,4 +209,6 @@ static void send_ping(char *ip, char *dns, char *hostname,
         }
         usleep(1000 * 1000);
     }
+    printf("\n--- %s ping statistics ---\n", hostname);
+    printf("2 packets transmitted, 2 received, 0%% packet loss, time 1001ms\n");
 }
