@@ -11,6 +11,7 @@ static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con);
 static void send_ping(char *ip, char *hostname, struct sockaddr_in *addr, int sockfd, int verbose);
 static unsigned short calculate_checksum(void *b, int len);
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
+static void icmp_error_handler(struct packet_t packet, struct iphdr *ip_header, struct icmphdr *receiver_header);
 
 static bool stop = false;
 
@@ -268,4 +269,8 @@ static void send_ping(char *ip, char *hostname,
         avg = avg / receive_count;
         printf("round-trip min/avg/max/stddev = %.3Lf/%.3Lf/%.3Lf/%.3Lf ms\n", min, avg, max, mdev);
     }
+}
+
+static void icmp_error_handler(struct packet_t packet, struct iphdr *ip_header, struct icmphdr *receiver_header) {
+    
 }
