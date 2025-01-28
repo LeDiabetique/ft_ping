@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <stdbool.h>
+#include <argp.h>
 
 #pragma pack(push, 1)
 typedef struct packet_t {

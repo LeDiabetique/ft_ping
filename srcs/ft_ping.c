@@ -6,17 +6,71 @@ static char *reverse_dns(char *ip, char *arg);
 static void send_ping(char *ip, char *dns, char *hostname, struct sockaddr_in *addr, int sockfd);
 static unsigned short calculate_checksum(void *b, int len);
 static bool is_ip_address(char * addr);
+static error_t parse_opt(int key, char *arg, struct argp_state *state);
 
 static bool stop = false;
 
+static struct argp_option options[] = {
+  {"verbose", 'v', 0, 0, "Produce verbose output" ,0},
+  {"help", '?', 0, 0, "Display ping options", 0},
+  { 0 }
+};
+
+struct arguments
+{
+  char *args[2];                /* arg1 & arg2 */
+  int verbose, help;
+};
+
+static char doc[] =
+  "Argp example #3 -- a program with options and arguments using argp";
+
+static char args_doc[] = "IP/Domain Name";
+
+static struct argp argp = { options, parse_opt, args_doc, doc, 0, 0, NULL};
+
+static error_t parse_opt(int key, char *arg, struct argp_state *state) {
+
+    struct arguments *arguments = state->input;
+  switch (key)
+    {
+    case 'v':
+      arguments->verbose = 1;
+      break;
+    case '?':
+      arguments->help = 1;
+      argp_help(&argp, stdout, ARGP_HELP_LONG, state);
+      exit(0);
+      break;
+
+    case ARGP_KEY_ARG:
+      if (state->arg_num > 3) {
+        argp_usage(state);
+      }
+      arguments->args[state->arg_num] = arg;
+      break;
+
+    case ARGP_KEY_END:
+      if (state->arg_num < 1) {
+
+      argp_usage(state);
+      }
+      break;
+
+    default:
+      return ARGP_ERR_UNKNOWN;
+    }
+  return 0;
+}
+
+
 int main(int ac, char **av)
 {
-    if (ac < 2)
-    {
-        printf("Error command must have at least 1 argument\n");
-    }
-    (void)av;
-    // parse args
+    struct arguments arguments;
+    arguments.help = 0;
+    arguments.verbose = 0;
+
+    argp_parse(&argp,ac,av,0,0,&arguments);
 
     ft_ping(av);
     return 0;
