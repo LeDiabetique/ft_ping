@@ -1,8 +1,14 @@
 #include "ft_ping.h"
 
-static void ft_ping(char *argv);
+struct arguments
+{
+    char *args[2];
+    int verbose, help;
+};
+
+static void ft_ping(char *argv, struct arguments arguments);
 static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con);
-static void send_ping(char *ip, char *hostname, struct sockaddr_in *addr, int sockfd);
+static void send_ping(char *ip, char *hostname, struct sockaddr_in *addr, int sockfd, int verbose);
 static unsigned short calculate_checksum(void *b, int len);
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
 
@@ -16,11 +22,6 @@ static struct argp_option options[] = {
     {"help", '?', 0, 0, "Display ping options", 0},
     {0}};
 
-struct arguments
-{
-    char *args[2]; /* arg1 & arg2 */
-    int verbose, help;
-};
 
 static char args_doc[] = "HOST ...";
 static char doc[] = "Send ICMP ECHO_REQUEST packets to network hosts.";
@@ -73,7 +74,7 @@ int main(int ac, char **av)
 
     argp_parse(&argp, ac, av, 0, 0, &arguments);
 
-    ft_ping(arguments.args[0]);
+    ft_ping(arguments.args[0], arguments);
     return 0;
 }
 
@@ -82,7 +83,7 @@ static void sighandler()
     stop = true;
 }
 
-static void ft_ping(char *argv)
+static void ft_ping(char *argv, struct arguments arguments)
 {
 
     int sockfd;
@@ -104,7 +105,7 @@ static void ft_ping(char *argv)
 
     signal(SIGINT, sighandler);
 
-    send_ping(ip_addr, argv, &addr_con, sockfd);
+    send_ping(ip_addr, argv, &addr_con, sockfd, arguments.verbose);
 }
 
 static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con)
@@ -144,7 +145,7 @@ static unsigned short calculate_checksum(void *b, int len)
 }
 
 static void send_ping(char *ip, char *hostname,
-                      struct sockaddr_in *s_addr, int sockfd)
+                      struct sockaddr_in *s_addr, int sockfd, int verbose)
 {
 
     struct sockaddr_in r_addr;
@@ -153,7 +154,7 @@ static void send_ping(char *ip, char *hostname,
     struct timeval t_out;
     struct packet_t packet;
     socklen_t addr_len = 0;
-    int ttl = 64, i = 0, count = 0, send_error = 0;
+    int ttl = TTL_VALUE, i = 0, count = 0, send_error = 0;
     char receive_buffer[128];
     int send_count = 0, receive_count = 0, error_count = 0;
     long double min = 0, max = 0, avg = 0, mdev = 0, last_timing;
@@ -171,15 +172,19 @@ static void send_ping(char *ip, char *hostname,
         printf("Fail to set socket timeout\n");
         return;
     }
-
-    printf("PING %s (%s) 56 data bytes\n", hostname, ip);
+    uint16_t id = htons(getpid());
+    if (verbose == 1) {
+        printf("PING %s (%s) 56 data bytes, id 0x%x = %u\n", hostname, ip, id, id);
+    } else {
+        printf("PING %s (%s) 56 data bytes\n", hostname, ip);
+    }
     while (!stop)
     {
         bzero(&packet, sizeof(packet));
         bzero(&r_addr, sizeof(r_addr));
         bzero(receive_buffer, sizeof(receive_buffer));
         packet.header.type = ICMP_ECHO;
-        packet.header.un.echo.id = htons(getpid());
+        packet.header.un.echo.id = id;
         packet.header.code = 0;
 
         for (i = 0; i < (int)sizeof(packet.msg); i++)
@@ -238,12 +243,12 @@ static void send_ping(char *ip, char *hostname,
                         mdev += calcul_mdev;
                     }
                     last_timing = timing;
-                    printf("64 bytes from %s: icmp_seq=%d ttl=%d time=%.3Lf ms\n", ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
+                    printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.3Lf ms\n", recv_len,ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
                 }
                 else
                 {
                     error_count++;
-                    printf("Receive code %d type %d\n", receiver_header->code, receiver_header->type);
+                    printf("ICMP:type %d, code %d, size %zu, id 0x%X, seq 0x%X\n", receiver_header->type, receiver_header->code, sizeof(receiver_header),receiver_header->un.echo.id, receiver_header->un.echo.sequence);
                 }
             }
         }

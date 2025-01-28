@@ -20,3 +20,5 @@ typedef struct packet_t {
     char msg[48];
 } packet_s;
 #pragma pack(pop)
+
+#define TTL_VALUE 1
