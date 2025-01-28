@@ -1,78 +1,81 @@
 #include "ft_ping.h"
 
-static void ft_ping(char **argv);
+static void ft_ping(char *argv);
 static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con);
-static char *reverse_dns(char *ip, char *arg);
-static void send_ping(char *ip, char *dns, char *hostname, struct sockaddr_in *addr, int sockfd);
+// static char *reverse_dns(char *ip, char *arg);
+static void send_ping(char *ip, char *hostname, struct sockaddr_in *addr, int sockfd);
 static unsigned short calculate_checksum(void *b, int len);
-static bool is_ip_address(char * addr);
+// static bool is_ip_address(char *addr);
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
 
 static bool stop = false;
 
+const char *argp_program_bug_address =
+  "<hdiot.student@42lyon.fr>";
+
 static struct argp_option options[] = {
-  {"verbose", 'v', 0, 0, "Produce verbose output" ,0},
-  {"help", '?', 0, 0, "Display ping options", 0},
-  { 0 }
-};
+    {"verbose", 'v', 0, 0, "Produce verbose output", 0},
+    {"help", '?', 0, 0, "Display ping options", 0},
+    {0}};
 
 struct arguments
 {
-  char *args[2];                /* arg1 & arg2 */
-  int verbose, help;
+    char *args[2]; /* arg1 & arg2 */
+    int verbose, help;
 };
 
-static char doc[] =
-  "Argp example #3 -- a program with options and arguments using argp";
+static char args_doc[] = "HOST ...";
+static char doc[] = "Send ICMP ECHO_REQUEST packets to network hosts.";
 
-static char args_doc[] = "IP/Domain Name";
+static struct argp argp = {options, parse_opt, args_doc, doc, 0, 0, NULL};
 
-static struct argp argp = { options, parse_opt, args_doc, doc, 0, 0, NULL};
-
-static error_t parse_opt(int key, char *arg, struct argp_state *state) {
+static error_t parse_opt(int key, char *arg, struct argp_state *state)
+{
 
     struct arguments *arguments = state->input;
-  switch (key)
+    switch (key)
     {
-    case 'v':
-      arguments->verbose = 1;
-      break;
-    case '?':
-      arguments->help = 1;
-      argp_help(&argp, stdout, ARGP_HELP_LONG, state);
-      exit(0);
-      break;
-
     case ARGP_KEY_ARG:
-      if (state->arg_num > 3) {
-        argp_usage(state);
-      }
-      arguments->args[state->arg_num] = arg;
-      break;
+        if (state->arg_num >= 2)
+        {
+            argp_usage(state);
+        }
+        arguments->args[state->arg_num] = arg;
+        break;
 
     case ARGP_KEY_END:
-      if (state->arg_num < 1) {
+        if (state->arg_num < 1)
+        {
+            argp_usage(state);
+        }
+        break;
+    case 'v':
+        arguments->verbose = 1;
+        if (state->arg_num == 2) {
+            argp_usage(state);
+        }
+        break;
+    case '?':
+        arguments->help = 1;
+        argp_help(&argp, stdout, ARGP_HELP_STD_HELP, "ft_ping.c");
+        exit(0);
+        break;
 
-      argp_usage(state);
-      }
-      break;
 
     default:
-      return ARGP_ERR_UNKNOWN;
+        return ARGP_ERR_UNKNOWN;
     }
-  return 0;
+    return 0;
 }
-
 
 int main(int ac, char **av)
 {
     struct arguments arguments;
-    arguments.help = 0;
     arguments.verbose = 0;
 
-    argp_parse(&argp,ac,av,0,0,&arguments);
+    argp_parse(&argp, ac, av, 0, 0, &arguments);
 
-    ft_ping(av);
+    ft_ping(arguments.args[0]);
     return 0;
 }
 
@@ -81,24 +84,24 @@ static void sighandler()
     stop = true;
 }
 
-static void ft_ping(char **argv)
+static void ft_ping(char *argv)
 {
 
     int sockfd;
-    char *ip_addr, *reverse_hostname;
+    char *ip_addr;
     struct sockaddr_in addr_con;
 
-    ip_addr = resolve_dns(argv[1], &addr_con);
+    ip_addr = resolve_dns(argv, &addr_con);
     if (ip_addr == NULL)
     {
         return;
     }
 
-    reverse_hostname = reverse_dns(ip_addr, argv[1]);
-    if (reverse_hostname == NULL)
-    {
-        return;
-    }
+    // reverse_hostname = reverse_dns(ip_addr, argv);
+    // if (reverse_hostname == NULL)
+    // {
+    //     return;
+    // }
 
     sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     if (sockfd < 0)
@@ -109,7 +112,7 @@ static void ft_ping(char **argv)
 
     signal(SIGINT, sighandler);
 
-    send_ping(ip_addr, reverse_hostname, argv[1], &addr_con, sockfd);
+    send_ping(ip_addr, argv, &addr_con, sockfd);
 }
 
 static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con)
@@ -118,52 +121,55 @@ static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con)
     struct hostent *host = gethostbyname(hostname);
     if (host == NULL)
     {
-        printf("ping: %s: Name or service not known\n", hostname);
+        printf("ping: unknown host\n");
         return NULL;
     }
-if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)host->h_addr), &(addr_con->sin_addr.s_addr)) <= 0) {
-        printf("Error converting address to binary format.\n");
+    if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)host->h_addr), &(addr_con->sin_addr.s_addr)) <= 0)
+    {
         return NULL;
     }
     strcpy(ip, inet_ntoa(*(struct in_addr *)host->h_addr));
-
-    // printf("Hostname found %s\n", host->h_name);
-    // printf("IP %s\n", ip);
 
     addr_con->sin_family = host->h_addrtype;
     addr_con->sin_port = htons(0);
     return ip;
 }
 
-static bool is_ip_address(char * addr) {
-    int len = strlen(addr);
-    for(int i = 0; i < len; i++) {
-        if ((addr[i] <= '0' || addr[i] >= '9') && addr[i] != '.') {
-            return false;
-        }
-    }
-    return true;
-}
+// static bool is_ip_address(char *addr)
+// {
+//     int len = strlen(addr);
+//     for (int i = 0; i < len; i++)
+//     {
+//         if ((addr[i] <= '0' || addr[i] >= '9') && addr[i] != '.')
+//         {
+//             return false;
+//         }
+//     }
+//     return true;
+// }
 
-static char *reverse_dns(char *ip, char *arg)
-{
-    struct sockaddr_in tmp;
-    tmp.sin_addr.s_addr = inet_addr(ip);
-    tmp.sin_family = AF_INET;
+// static char *reverse_dns(char *ip, char *arg)
+// {
+//     struct sockaddr_in tmp;
+//     tmp.sin_addr.s_addr = inet_addr(ip);
+//     tmp.sin_family = AF_INET;
 
-    socklen_t len = sizeof(struct sockaddr_in);
-    char *reversedns = malloc(NI_MAXHOST * sizeof(char));
-    if (is_ip_address(arg) == true){
-        strncpy(reversedns, arg, strlen(arg));
-    } else {
-        if (getnameinfo((struct sockaddr *)&tmp, len, reversedns, NI_MAXHOST, NULL, 0, NI_NAMEREQD))
-        {
-            // printf("Couldn't resolve hostname\n");
-            return reversedns;
-        }
-    }
-    return reversedns;
-}
+//     socklen_t len = sizeof(struct sockaddr_in);
+//     char *reversedns = malloc(NI_MAXHOST * sizeof(char));
+//     if (is_ip_address(arg) == true)
+//     {
+//         strncpy(reversedns, arg, strlen(arg));
+//     }
+//     else
+//     {
+//         if (getnameinfo((struct sockaddr *)&tmp, len, reversedns, NI_MAXHOST, NULL, 0, NI_NAMEREQD))
+//         {
+//             // printf("Couldn't resolve hostname\n");
+//             return reversedns;
+//         }
+//     }
+//     return reversedns;
+// }
 
 static unsigned short calculate_checksum(void *b, int len)
 {
@@ -181,14 +187,13 @@ static unsigned short calculate_checksum(void *b, int len)
     return result;
 }
 
-static void send_ping(char *ip, char *dns, char *hostname,
+static void send_ping(char *ip, char *hostname,
                       struct sockaddr_in *s_addr, int sockfd)
 {
 
     struct sockaddr_in r_addr;
 
     struct timeval time_start, time_end = {0};
-    long double total_time = 0;
     struct timeval t_out;
     struct packet_t packet;
     socklen_t addr_len = 0;
@@ -211,12 +216,12 @@ static void send_ping(char *ip, char *dns, char *hostname,
         return;
     }
 
-    printf("PING %s (%s) 56(84) bytes of data.\n", hostname, ip);
+    printf("PING %s (%s) 56 data bytes\n", hostname, ip);
     while (!stop)
     {
         bzero(&packet, sizeof(packet));
         bzero(&r_addr, sizeof(r_addr));
-        bzero(receive_buffer, sizeof(receive_buffer));        
+        bzero(receive_buffer, sizeof(receive_buffer));
         packet.header.type = ICMP_ECHO;
         packet.header.un.echo.id = htons(getpid());
         packet.header.code = 0;
@@ -234,46 +239,50 @@ static void send_ping(char *ip, char *dns, char *hostname,
         if (send_len <= 0)
         {
             send_error = 1;
-        } else {
+        }
+        else
+        {
             send_count++;
         }
         addr_len = sizeof(r_addr);
-        gettimeofday(&time_end, NULL);
-        long double send_timing = ((double)time_end.tv_usec - (double)time_start.tv_usec) / 1000;
-        total_time += ++send_timing;
-        gettimeofday(&time_start, NULL);
 
         int recv_len = recvfrom(sockfd, receive_buffer, sizeof(receive_buffer), 0, (struct sockaddr *)s_addr, &addr_len);
         gettimeofday(&time_end, NULL);
         long double timing = ((double)time_end.tv_usec - (double)time_start.tv_usec) / 1000;
+        if (timing < 0)
+        {
+            timing += 1000;
+        }
         if (recv_len > 0)
         {
             receive_count++;
             struct iphdr *ip_header = (struct iphdr *)receive_buffer;
             struct icmphdr *receiver_header = (struct icmphdr *)(receive_buffer + (ip_header->ihl * 4));
 
-
             if (!send_error)
             {
                 if (receiver_header->type == 0 && receiver_header->code == 0)
                 {
-                    if (timing < min || min == 0) {
-                        min = timing; 
+                    if (timing < min || min == 0)
+                    {
+                        min = timing;
                     }
-                    if (timing > max || max == 0) {
+                    if (timing > max || max == 0)
+                    {
                         max = timing;
                     }
                     avg += timing;
-                    if(count > 1) {
+                    if (count > 1)
+                    {
                         long double calcul_mdev = last_timing - timing;
-                        if (calcul_mdev < 0) {
+                        if (calcul_mdev < 0)
+                        {
                             calcul_mdev *= -1;
                         }
                         mdev += calcul_mdev;
-
                     }
                     last_timing = timing;
-                    printf("64 bytes from %s (%s): icmp_seq=%d ttl=%d time=%.1Lf ms\n", dns, ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
+                    printf("64 bytes from %s: icmp_seq=%d ttl=%d time=%.1Lf ms\n", ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
                 }
                 else
                 {
@@ -283,19 +292,24 @@ static void send_ping(char *ip, char *dns, char *hostname,
             }
         }
         long double sleep_timing = ((double)time_end.tv_usec - (double)time_start.tv_usec) / 1000;
-        long double sleep_time = 1000 - sleep_timing - send_timing;
+        if (sleep_timing < 0)
+        {
+            sleep_timing += 1000;
+        }
+        long double sleep_time = 1000 - sleep_timing;
         usleep(sleep_time * 1000);
-        total_time += 1000; 
     }
-    printf("\n--- %s ping statistics ---\n", hostname);
-    printf("%d packets transmitted, %d received,",send_count, receive_count);
-    if (error_count > 0) {
-        printf("+ %derrors, ",error_count);
+    printf("--- %s ping statistics ---\n", hostname);
+    printf("%d packets transmitted, %d received,", send_count, receive_count);
+    if (error_count > 0)
+    {
+        printf("+ %derrors, ", error_count);
     }
-    printf("%d%% packet loss, time %.0Lfms\n", 100 - (receive_count / send_count * 100), total_time);
-    if (receive_count > 0) {
+    printf(" %d%% packet loss\n", 100 - (receive_count / send_count * 100));
+    if (receive_count > 0)
+    {
         mdev = mdev / receive_count;
         avg = avg / receive_count;
-        printf("rtt min/avg/max/mdev = %.3Lf/%.3Lf/%.3Lf/%.3Lf ms\n", min,avg,max,mdev);
+        printf("round-trip min/avg/max/stddev = %.3Lf/%.3Lf/%.3Lf/%.3Lf ms\n", min, avg, max, mdev);
     }
 }
