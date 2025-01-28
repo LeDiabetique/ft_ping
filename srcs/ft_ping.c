@@ -2,10 +2,8 @@
 
 static void ft_ping(char *argv);
 static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con);
-// static char *reverse_dns(char *ip, char *arg);
 static void send_ping(char *ip, char *hostname, struct sockaddr_in *addr, int sockfd);
 static unsigned short calculate_checksum(void *b, int len);
-// static bool is_ip_address(char *addr);
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
 
 static bool stop = false;
@@ -97,12 +95,6 @@ static void ft_ping(char *argv)
         return;
     }
 
-    // reverse_hostname = reverse_dns(ip_addr, argv);
-    // if (reverse_hostname == NULL)
-    // {
-    //     return;
-    // }
-
     sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     if (sockfd < 0)
     {
@@ -134,42 +126,6 @@ static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con)
     addr_con->sin_port = htons(0);
     return ip;
 }
-
-// static bool is_ip_address(char *addr)
-// {
-//     int len = strlen(addr);
-//     for (int i = 0; i < len; i++)
-//     {
-//         if ((addr[i] <= '0' || addr[i] >= '9') && addr[i] != '.')
-//         {
-//             return false;
-//         }
-//     }
-//     return true;
-// }
-
-// static char *reverse_dns(char *ip, char *arg)
-// {
-//     struct sockaddr_in tmp;
-//     tmp.sin_addr.s_addr = inet_addr(ip);
-//     tmp.sin_family = AF_INET;
-
-//     socklen_t len = sizeof(struct sockaddr_in);
-//     char *reversedns = malloc(NI_MAXHOST * sizeof(char));
-//     if (is_ip_address(arg) == true)
-//     {
-//         strncpy(reversedns, arg, strlen(arg));
-//     }
-//     else
-//     {
-//         if (getnameinfo((struct sockaddr *)&tmp, len, reversedns, NI_MAXHOST, NULL, 0, NI_NAMEREQD))
-//         {
-//             // printf("Couldn't resolve hostname\n");
-//             return reversedns;
-//         }
-//     }
-//     return reversedns;
-// }
 
 static unsigned short calculate_checksum(void *b, int len)
 {
@@ -282,7 +238,7 @@ static void send_ping(char *ip, char *hostname,
                         mdev += calcul_mdev;
                     }
                     last_timing = timing;
-                    printf("64 bytes from %s: icmp_seq=%d ttl=%d time=%.1Lf ms\n", ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
+                    printf("64 bytes from %s: icmp_seq=%d ttl=%d time=%.3Lf ms\n", ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
                 }
                 else
                 {
