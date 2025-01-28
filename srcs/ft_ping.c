@@ -156,7 +156,7 @@ static void send_ping(char *ip, char *hostname,
     socklen_t addr_len = 0;
     int ttl = TTL_VALUE, i = 0, count = 0, send_error = 0;
     char receive_buffer[128];
-    int send_count = 0, receive_count = 0, error_count = 0;
+    int send_count = 0, receive_count = 0;
     long double min = 0, max = 0, avg = 0, mdev = 0, last_timing;
     t_out.tv_sec = 1;
     t_out.tv_usec = 0;
@@ -174,9 +174,9 @@ static void send_ping(char *ip, char *hostname,
     }
     uint16_t id = htons(getpid());
     if (verbose == 1) {
-        printf("PING %s (%s) 56 data bytes, id 0x%x = %u\n", hostname, ip, id, id);
+        printf("PING %s (%s) %ld data bytes, id 0x%x = %u\n", hostname, ip, sizeof(packet),id, id);
     } else {
-        printf("PING %s (%s) 56 data bytes\n", hostname, ip);
+        printf("PING %s (%s) %ld data bytes\n", hostname, ip, sizeof(packet));
     }
     while (!stop)
     {
@@ -216,7 +216,6 @@ static void send_ping(char *ip, char *hostname,
         }
         if (recv_len > 0)
         {
-            receive_count++;
             struct iphdr *ip_header = (struct iphdr *)receive_buffer;
             struct icmphdr *receiver_header = (struct icmphdr *)(receive_buffer + (ip_header->ihl * 4));
 
@@ -224,6 +223,7 @@ static void send_ping(char *ip, char *hostname,
             {
                 if (receiver_header->type == 0 && receiver_header->code == 0)
                 {
+                    receive_count++;
                     if (timing < min || min == 0)
                     {
                         min = timing;
@@ -243,12 +243,11 @@ static void send_ping(char *ip, char *hostname,
                         mdev += calcul_mdev;
                     }
                     last_timing = timing;
-                    printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.3Lf ms\n", recv_len,ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
+                    printf("%ld bytes from %s: icmp_seq=%d ttl=%d time=%.3Lf ms\n", sizeof(receive_buffer) / 2,ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
                 }
                 else
                 {
-                    error_count++;
-                    printf("ICMP:type %d, code %d, size %zu, id 0x%X, seq 0x%X\n", receiver_header->type, receiver_header->code, sizeof(receiver_header),receiver_header->un.echo.id, receiver_header->un.echo.sequence);
+                    printf("ICMP: type %d, code %d, size %zu, id 0x%x, seq 0x%x\n", packet.header.type, packet.header.code, sizeof(packet),packet.header.un.echo.id, packet.header.un.echo.sequence);
                 }
             }
         }
@@ -261,11 +260,7 @@ static void send_ping(char *ip, char *hostname,
         usleep(sleep_time * 1000);
     }
     printf("--- %s ping statistics ---\n", hostname);
-    printf("%d packets transmitted, %d received,", send_count, receive_count);
-    if (error_count > 0)
-    {
-        printf("+ %derrors, ", error_count);
-    }
+    printf("%d packets transmitted, %d packets received,", send_count, receive_count);
     printf(" %d%% packet loss\n", 100 - (receive_count / send_count * 100));
     if (receive_count > 0)
     {
