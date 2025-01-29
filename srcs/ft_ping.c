@@ -11,18 +11,17 @@ static char *resolve_dns(char *hostname, struct sockaddr_in *addr_con);
 static void send_ping(char *ip, char *hostname, struct sockaddr_in *addr, int sockfd, int verbose);
 static unsigned short calculate_checksum(void *b, int len);
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
-static void icmp_error_handler(struct packet_t packet, struct iphdr *ip_header, struct icmphdr *receiver_header);
+static void icmp_error_handler(struct iphdr *ip_header, struct icmphdr *receiver_header, int verbose);
 
 static bool stop = false;
 
 const char *argp_program_bug_address =
-  "<hdiot.student@42lyon.fr>";
+    "<hdiot.student@42lyon.fr>";
 
 static struct argp_option options[] = {
     {"verbose", 'v', 0, 0, "Produce verbose output", 0},
     {"help", '?', 0, 0, "Display ping options", 0},
     {0}};
-
 
 static char args_doc[] = "HOST ...";
 static char doc[] = "Send ICMP ECHO_REQUEST packets to network hosts.";
@@ -51,7 +50,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         break;
     case 'v':
         arguments->verbose = 1;
-        if (state->arg_num == 2) {
+        if (state->arg_num == 2)
+        {
             argp_usage(state);
         }
         break;
@@ -60,7 +60,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         argp_help(&argp, stdout, ARGP_HELP_STD_HELP, "ft_ping.c");
         exit(0);
         break;
-
 
     default:
         return ARGP_ERR_UNKNOWN;
@@ -149,7 +148,7 @@ static void send_ping(char *ip, char *hostname,
                       struct sockaddr_in *s_addr, int sockfd, int verbose)
 {
 
-    struct sockaddr_in r_addr;
+    struct sockaddr_in *r_addr;
 
     struct timeval time_start, time_end = {0};
     struct timeval t_out;
@@ -174,9 +173,12 @@ static void send_ping(char *ip, char *hostname,
         return;
     }
     uint16_t id = htons(getpid());
-    if (verbose == 1) {
-        printf("PING %s (%s) %ld data bytes, id 0x%x = %u\n", hostname, ip, sizeof(packet),id, id);
-    } else {
+    if (verbose == 1)
+    {
+        printf("PING %s (%s) %ld data bytes, id 0x%x = %u\n", hostname, ip, sizeof(packet), id, id);
+    }
+    else
+    {
         printf("PING %s (%s) %ld data bytes\n", hostname, ip, sizeof(packet));
     }
     while (!stop)
@@ -208,7 +210,7 @@ static void send_ping(char *ip, char *hostname,
         }
         addr_len = sizeof(r_addr);
 
-        int recv_len = recvfrom(sockfd, receive_buffer, sizeof(receive_buffer), 0, (struct sockaddr *)s_addr, &addr_len);
+        int recv_len = recvfrom(sockfd, receive_buffer, sizeof(receive_buffer), 0, (struct sockaddr *)r_addr, &addr_len);
         gettimeofday(&time_end, NULL);
         long double timing = ((double)time_end.tv_usec - (double)time_start.tv_usec) / 1000;
         if (timing < 0)
@@ -234,7 +236,7 @@ static void send_ping(char *ip, char *hostname,
                         max = timing;
                     }
                     avg += timing;
-                    if (count > 1)
+                    if (receive_count > 1)
                     {
                         long double calcul_mdev = last_timing - timing;
                         if (calcul_mdev < 0)
@@ -244,11 +246,12 @@ static void send_ping(char *ip, char *hostname,
                         mdev += calcul_mdev;
                     }
                     last_timing = timing;
-                    printf("%ld bytes from %s: icmp_seq=%d ttl=%d time=%.3Lf ms\n", sizeof(receive_buffer) / 2,ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
+                    printf("%ld bytes from %s: icmp_seq=%d ttl=%d time=%.3Lf ms\n", sizeof(receive_buffer) / 2, ip, __bswap_16(receiver_header->un.echo.sequence), ip_header->ttl, timing);
                 }
                 else
                 {
-                    printf("ICMP: type %d, code %d, size %zu, id 0x%x, seq 0x%x\n", packet.header.type, packet.header.code, sizeof(packet),packet.header.un.echo.id, packet.header.un.echo.sequence);
+                    icmp_error_handler(ip_header, receiver_header, verbose);
+                    printf("ICMP: type %d, code %d, size %zu, id 0x%x, seq 0x%x\n", packet.header.type, packet.header.code, sizeof(packet), packet.header.un.echo.id, packet.header.un.echo.sequence);
                 }
             }
         }
@@ -271,6 +274,119 @@ static void send_ping(char *ip, char *hostname,
     }
 }
 
-static void icmp_error_handler(struct packet_t packet, struct iphdr *ip_header, struct icmphdr *receiver_header) {
-    
+static void icmp_error_handler(struct iphdr *ip_header, struct icmphdr *receiver_header, int verbose)
+{
+    printf("%d bytes from _gateway (%s): ", 36, inet_ntoa(*(struct in_addr *)&ip_header->saddr));
+    if (receiver_header->type == ICMP_TIME_EXCEEDED)
+    {
+        switch (receiver_header->code)
+        {
+        case ICMP_EXC_TTL:
+            printf("Time to live exceeded\n");
+            break;
+        case ICMP_EXC_FRAGTIME:
+            printf("Fragment Reassembly Time Exceeded\n");
+            break;
+        default:
+            printf("Time to live exceeded\n");
+            break;
+        }
+    }
+    else if (receiver_header->type == ICMP_DEST_UNREACH)
+    {
+        switch (receiver_header->code)
+        {
+        case ICMP_NET_UNREACH:
+            printf("Network unreachable\n");
+            break;
+        case ICMP_HOST_UNREACH:
+            printf("Host unreachable\n");
+            break;
+        case ICMP_PROT_UNREACH:
+            printf("Protocol unreachable\n");
+            break;
+        case ICMP_PORT_UNREACH:
+            printf("Port unreachable\n");
+            break;
+        case ICMP_FRAG_NEEDED:
+            printf("Fragmentation Needed and Don't Fragment was Set\n");
+            break;
+        case ICMP_SR_FAILED:
+            printf("Source Route Failed\n");
+            break;
+        case ICMP_NET_UNKNOWN:
+            printf("Destination Network Unknown\n");
+            break;
+        case ICMP_HOST_UNKNOWN:
+            printf("Destination Host Unknown\n");
+            break;
+        case ICMP_NET_UNR_TOS:
+            printf("Destination Network Unreachable for Type of Service\n");
+            break;
+        case ICMP_HOST_UNR_TOS:
+            printf("Destination Host Unreachable for Type of Service\n");
+            break;
+        case ICMP_PKT_FILTERED:
+            printf("Communication Administratively Prohibited\n");
+            break;
+        case ICMP_PREC_VIOLATION:
+            printf("Host Precedence Violation\n");
+            break;
+        case ICMP_PREC_CUTOFF:
+            printf("Precedence cutoff in effect\n");
+            break;
+        default:
+            printf("Destination unreachable\n");
+            break;
+        }
+    }
+    else if (receiver_header->type == ICMP_REDIRECT)
+    {
+        switch (receiver_header->code)
+        {
+        case ICMP_REDIR_HOST:
+            printf("Redirect for Destination Host\n");
+            break;
+        case ICMP_REDIR_HOSTTOS:
+            printf("Redirect for Destination Host Based on Type-of-Service\n");
+            break;
+        default:
+            printf("Redirect error\n");
+            break;
+        }
+    }
+    else if (receiver_header->type == ICMP_PARAMETERPROB)
+    {
+        switch (receiver_header->code)
+        {
+        case 0:
+            printf("Pointer indicates the error\n");
+            break;
+        case 1:
+            printf("Missing a Required Option\n");
+            break;
+        case 2:
+            printf("Bad Length\n");
+            break;
+        default:
+            printf("Parameter problem\n");
+            break;
+        }
+    }
+    else
+    {
+        printf("Unhandled Error\n");
+    }
+    if (verbose == 1)
+    {
+        printf("IP Hdr Dump:\n");
+        for (int i = 0; i < (int)sizeof(ip_header); i++) {
+            printf("%04x ", ((unsigned char *)ip_header)[i]);
+        }
+        printf("\n");
+        printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks      Src      Dst     Data\n");
+        printf("%2x %2x %3x %04x %4x %3x %04x %x %4x %s %s\n", ip_header->version, ip_header->ihl,
+         ip_header->tos, ip_header->tot_len, ip_header->id, ip_header->frag_off, ip_header->ttl,
+         ip_header->protocol, ip_header->check, inet_ntoa(*(struct in_addr *)&ip_header->saddr), inet_ntoa(*(struct in_addr *)&ip_header->daddr));
+    }
 }

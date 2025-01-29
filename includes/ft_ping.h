@@ -21,4 +21,4 @@ typedef struct packet_t {
 } packet_s;
 #pragma pack(pop)
 
-#define TTL_VALUE 64
+#define TTL_VALUE 1
