@@ -220,6 +220,7 @@ static void send_ping(char *ip, char *hostname,
         if (recv_len > 0)
         {
             struct iphdr *ip_header = (struct iphdr *)receive_buffer;
+            struct iphdr *ip_info = (struct iphdr *)(receive_buffer + 28);
             struct icmphdr *receiver_header = (struct icmphdr *)(receive_buffer + (ip_header->ihl * 4));
 
             if (!send_error)
@@ -250,7 +251,7 @@ static void send_ping(char *ip, char *hostname,
                 }
                 else
                 {
-                    icmp_error_handler(ip_header, receiver_header, verbose);
+                    icmp_error_handler(ip_info, receiver_header, verbose);
                     printf("ICMP: type %d, code %d, size %zu, id 0x%x, seq 0x%x\n", packet.header.type, packet.header.code, sizeof(packet), packet.header.un.echo.id, packet.header.un.echo.sequence);
                 }
             }
@@ -380,13 +381,14 @@ static void icmp_error_handler(struct iphdr *ip_header, struct icmphdr *receiver
     if (verbose == 1)
     {
         printf("IP Hdr Dump:\n");
-        for (int i = 0; i < (int)sizeof(ip_header); i++) {
+        for (int i = 0; i < (int)sizeof(*ip_header); i++)
+        {
             printf("%04x ", ((unsigned char *)ip_header)[i]);
         }
         printf("\n");
         printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks      Src      Dst     Data\n");
-        printf("%2x %2x %3x %04x %4x %3x %04x %x %4x %s %s\n", ip_header->version, ip_header->ihl,
-         ip_header->tos, ip_header->tot_len, ip_header->id, ip_header->frag_off, ip_header->ttl,
-         ip_header->protocol, ip_header->check, inet_ntoa(*(struct in_addr *)&ip_header->saddr), inet_ntoa(*(struct in_addr *)&ip_header->daddr));
+        printf("%x %x %x %x %x %x %x %x %x %x %x\n", ip_header->version, ip_header->ihl,
+               ip_header->tos, ip_header->tot_len, ip_header->id, ip_header->frag_off, ip_header->ttl,
+               ip_header->protocol, ip_header->check, ip_header->saddr, ip_header->daddr);
     }
 }
