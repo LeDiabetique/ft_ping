@@ -383,7 +383,7 @@ static void icmp_error_handler(struct iphdr *ip_header, struct icmphdr *receiver
         printf("IP Hdr Dump:\n");
         for (int i = 0; i < (int)sizeof(*ip_header); i++)
         {
-            printf("%04x ", ((unsigned char *)ip_header)[i]);
+            printf("%x ", ((unsigned char *)ip_header)[i]);
         }
         printf("\n");
         printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks      Src      Dst     Data\n");
