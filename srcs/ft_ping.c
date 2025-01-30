@@ -175,11 +175,11 @@ static void send_ping(char *ip, char *hostname,
     uint16_t id = htons(getpid());
     if (verbose == 1)
     {
-        printf("PING %s (%s) %ld data bytes, id 0x%x = %u\n", hostname, ip, sizeof(packet)- sizeof(struct icmphdr), id, id);
+        printf("PING %s (%s): %ld data bytes, id 0x%x = %u\n", hostname, ip, sizeof(packet)- sizeof(struct icmphdr), id, id);
     }
     else
     {
-        printf("PING %s (%s) %ld data bytes\n", hostname, ip, sizeof(packet));
+        printf("PING %s (%s): %ld data bytes\n", hostname, ip, sizeof(packet));
     }
     while (!stop)
     {
