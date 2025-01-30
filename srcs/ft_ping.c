@@ -400,9 +400,9 @@ static void icmp_error_handler(struct iphdr *ip_header, struct icmphdr *receiver
         char src_buf[64];
         char dest_buf[64];
         inet_ntop(AF_INET,&ip_header->saddr,src_buf,sizeof(src_buf));
-        inet_ntop(AF_INET,&ip_header->saddr,dest_buf,sizeof(dest_buf));
-        printf(" %x  %x  %02x %4x %x  %x %02x %02x %x %s  %s\n", ip_header->version, ip_header->ihl,
-               ip_header->tos, ip_header->tot_len, ip_header->id, ip_header->frag_off, ip_header->ttl,
+        inet_ntop(AF_INET,&ip_header->daddr,dest_buf,sizeof(dest_buf));
+        printf(" %x  %x  %02x %4x %x   %d %04x  %02x  %02x %x %s  %s\n", ip_header->version, ip_header->ihl,
+               ip_header->tos, ip_header->tot_len, ip_header->id, (ip_header->frag_off >> 5),(ip_header->frag_off & 0xBF), ip_header->ttl,
                ip_header->protocol, ip_header->check, src_buf, dest_buf);
     }
 }
