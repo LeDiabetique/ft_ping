@@ -175,7 +175,7 @@ static void send_ping(char *ip, char *hostname,
     uint16_t id = htons(getpid());
     if (verbose == 1)
     {
-        printf("PING %s (%s) %ld data bytes, id 0x%x = %u\n", hostname, ip, sizeof(packet), id, id);
+        printf("PING %s (%s) %ld data bytes, id 0x%x = %u\n", hostname, ip, sizeof(packet)- sizeof(struct icmphdr), id, id);
     }
     else
     {
@@ -196,9 +196,14 @@ static void send_ping(char *ip, char *hostname,
         }
         packet.msg[i] = 0;
         packet.header.un.echo.sequence = __bswap_16(count++);
+        gettimeofday(&time_start, NULL);
+        uint32_t sec = htonl(time_start.tv_sec);
+        uint32_t usec = htonl(time_start.tv_usec);
+        
+        memcpy(packet.timestamp, &sec, sizeof(sec));  // Copier la partie secondes
+        memcpy(packet.timestamp + 4, &usec, sizeof(usec)); 
         packet.header.checksum = calculate_checksum(&packet, sizeof(packet));
 
-        gettimeofday(&time_start, NULL);
         int send_len = sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)s_addr, sizeof(*s_addr));
         if (send_len <= 0)
         {
@@ -381,14 +386,23 @@ static void icmp_error_handler(struct iphdr *ip_header, struct icmphdr *receiver
     if (verbose == 1)
     {
         printf("IP Hdr Dump:\n");
-        for (int i = 0; i < (int)sizeof(*ip_header); i++)
+        size_t hdr_len = sizeof(*ip_header);
+        for (size_t i = 0; i < hdr_len; i+=2)
         {
-            printf("%x ", ((unsigned char *)ip_header)[i]);
+            if(i + 1 < hdr_len) {
+                printf(" %02x%02x", ((unsigned char *)ip_header)[i], ((unsigned char *)ip_header)[i +1]);
+            } else {
+                printf(" %02x", ((unsigned char *)ip_header)[i]);
+            }
         }
         printf("\n");
         printf("Vr HL TOS  Len   ID Flg  off TTL Pro  cks      Src      Dst     Data\n");
-        printf("%x %x %x %x %x %x %x %x %x %x %x\n", ip_header->version, ip_header->ihl,
+        char src_buf[64];
+        char dest_buf[64];
+        inet_ntop(AF_INET,&ip_header->saddr,src_buf,sizeof(src_buf));
+        inet_ntop(AF_INET,&ip_header->saddr,dest_buf,sizeof(dest_buf));
+        printf(" %x  %x  %02x %4x %x  %x %02x %02x %x %s  %s\n", ip_header->version, ip_header->ihl,
                ip_header->tos, ip_header->tot_len, ip_header->id, ip_header->frag_off, ip_header->ttl,
-               ip_header->protocol, ip_header->check, ip_header->saddr, ip_header->daddr);
+               ip_header->protocol, ip_header->check, src_buf, dest_buf);
     }
 }

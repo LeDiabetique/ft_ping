@@ -17,6 +17,7 @@
 #pragma pack(push, 1)
 typedef struct packet_t {
     struct icmphdr header;
+    char timestamp[8];
     char msg[48];
 } packet_s;
 #pragma pack(pop)
